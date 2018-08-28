@@ -1,0 +1,137 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+//apply plugin: 'java'
+
+buildscript {
+    ext.kotlin_version = '1.2.61'
+
+    repositories {
+        google()
+        jcenter()
+        mavenCentral()
+    }
+
+    dependencies {
+        // Note: when changing the version of the gradle plugin please make sure to update
+        // customlint/build.gradle!
+        classpath 'com.android.tools.build:gradle:3.2.0-rc02'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        jcenter()
+    }
+
+    configurations {
+        ktlint
+    }
+
+    dependencies {
+        ktlint 'com.github.shyiko:ktlint:0.14.0'
+    }
+
+    project.ext['compileSdkVersion'] = 28
+    project.ext['buildToolsVersion'] = "28.0.2"
+    project.ext['minSdkVersion'] = hasProperty('HB') ? 23 : 19
+    project.ext['minTestSdkVersion'] = 19
+    project.ext['targetSdkVersion'] = 27
+    project.ext['multidexVersion'] = "1.0.0"
+    project.ext['lintApi'] = '26.2.0-beta04'
+
+    // Google Dependencies
+    // The version of all Google Support/AppCompat dependencies used.
+    project.ext['comAndroidSupportVersion'] = "27.1.1"
+    project.ext['comAndroidSupportPreferenceVersion'] = "27.1.1"
+    project.ext['googlePlayServicesVersion'] = "11.8.0"
+
+    // Third Party Dependencies
+    project.ext['retrofitVersion'] = "2.3.0"
+    project.ext['okHttpVersion'] = "3.9.0"
+    project.ext['constraintLayoutVersion'] = "1.1.2"
+    project.ext['moshiVersion'] = "1.5.0"
+    project.ext['picassoVersion'] = "2.5.2"
+    project.ext['commonsIOVersion'] = "2.5"
+    project.ext['commonsLangVersion'] = "3.6"
+
+    // Test app Third Party Dependencies
+    project.ext['leakCanaryVersion'] = "1.5.4"
+
+    // Testing Dependencies
+    project.ext['junitVersion'] = "4.12"
+    project.ext['junitSupportTestRunnerVersion'] = "1.0.1"
+    project.ext['mockitoVersion'] = "2.10.0"
+    project.ext['mockWebServerVersion'] = "3.9.0"
+    project.ext['mockitoKotlinVersion'] = "1.5.0"
+    project.ext['robolectricVersion'] = "3.6.1"
+    project.ext['robolectricShadowSupportVersion'] = "3.4-rc2"
+    project.ext['espressoVersion'] = "3.0.1"
+}
+
+subprojects {
+    afterEvaluate { project ->
+
+        task checkstyle(type: Checkstyle) {
+            showViolations = true
+            ignoreFailures = true
+            configFile file(project.getRootDir().absolutePath
+                    + "/checkstyle/checkstyle.xml")
+
+            source 'src/main/java'
+            exclude '**/gen/**'
+            exclude '**/R.java'
+            exclude '**/BuildConfig.java'
+            exclude '**/*.kt'
+
+            if (project.hasProperty('STYLE')) {
+                include '**/*.java'
+            } else {
+                exclude '**/*.java'
+            }
+
+            // empty classpath
+            classpath = files()
+        }
+
+        //Generate the link check / style check
+        task ktlint(type: JavaExec) {
+            main = "com.github.shyiko.ktlint.Main"
+            classpath = configurations.ktlint
+            args "--reporter=checkstyle", "src/**/*.kt"
+            ignoreExitValue = true
+        }
+
+        //Run this grade task to automatically format your kotlin files according to
+        //Kotlin style guidelines
+        task ktlintFormat(type: JavaExec) {
+            main = "com.github.shyiko.ktlint.Main"
+            classpath = configurations.ktlint
+            args "-F", "src/**/*.kt"
+            ignoreExitValue = true
+        }
+
+        //This task runs the ktlint tool against the Kotlin code to check for lint issues
+        //and style guidelines.
+        task ktlintGenerateCheckstyleXML(type: Exec) {
+            commandLine 'java', '-cp', configurations.ktlint.join(System.getProperty('path.separator')),
+                    'com.github.shyiko.ktlint.Main', '--reporter=checkstyle', 'src/**/*.kt'
+            def buildDirectory = buildDir.absolutePath
+            //Only run against non-testapp folders
+            if (!buildDirectory.contains("testapp-")) {
+                //Create ktlint-checkstyle-report.xml if it doesn't already exist
+                def checkStyleFile = new File(buildDirectory + "/reports/checkstyle/", "ktlint-checkstyle-report.xml")
+                if (!checkStyleFile.isFile()) {
+                    checkStyleFile.parentFile.mkdirs()
+                    checkStyleFile.createNewFile()
+                }
+                //Write checkstyle info into ktlint-checkstyle-report.xml
+                standardOutput = new FileOutputStream(checkStyleFile)
+                doLast {
+                    standardOutput.close()
+                }
+            }
+            ignoreExitValue = true
+        }
+    }
+}
